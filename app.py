@@ -6,12 +6,13 @@ from tkinter import filedialog as fd
 from functools import partial
 import mbox
 import csv
+import os
 
 # global variables
 filename = ""
 clicked_col = -1
 clicked_row = -1
-headings = []  # column names
+headers = []  # column names
 rows = []  # rows array that contain the data
 rows_display = []  # rows array for display purpose
 rv = False  # reverse sort
@@ -47,29 +48,36 @@ def select_file():
 
 
 def read_file():
-    global filename, rows, rows_display, headings
-    with open(filename, mode="r") as f:
+    global filename, rows, rows_display, headers
+    with open(filename, mode="r", encoding="latin1") as f:
         lines = f.readlines()
         rows = []
         # csv reader needed because some product names have commas in them
-        for line in csv.reader(lines[1:], quotechar='"', delimiter=',', quoting=csv.QUOTE_ALL):
+        for line in csv.reader(lines[1:], quotechar='"', delimiter=',', quoting=csv.QUOTE_MINIMAL):
             rows.append(line)
-        headings = lines[0].strip().split(',')
+        headers = lines[0].strip().split(',')
     root.title(filename)
     rows_display = rows
 
 
 def save_as():
     global filename, rv, sorted_col, rows_display
-    f = fd.asksaveasfile(mode='w', defaultextension=".csv", filetypes=(('CSV files', '*.csv'),))
-    if f is None:  # asksaveasfile return `None` if dialog closed with "cancel".
+    fname = fd.asksaveasfilename(defaultextension=".csv", filetypes=(('CSV files', '*.csv'),))
+    if fname is None:  # asksaveasfile return `None` if dialog closed with "cancel".
         return
-    csv_data = ",".join(headings) + "\n"
-    csv_data += "\n".join([','.join(row) for row in rows])
-    f.write(csv_data)
+
+    with open(fname, mode="w", newline='', encoding='latin1') as f:
+        # Commented out because this method doesn't account for commas in the product name
+        # csv_data = ",".join(headers) + "\n"
+        # csv_data += "\n".join([','.join(row) for row in rows])
+        # f.write(csv_data)
+
+        w = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        w.writerow(headers)
+        w.writerows(rows)
 
     # open the newly saved file
-    filename = f.name
+    filename = fname
     read_file()
 
     # preserve the current search
@@ -81,20 +89,26 @@ def save_as():
     rv = not rv
     sort_data(sorted_col)
 
-    f.close()
     text.configure(text="Saved file")
     return
 
 
 def save():
     global filename
-    with open(filename, mode="w") as f:
-        csv_data = ",".join(headings) + "\n"
-        csv_data += "\n".join([','.join(row) for row in rows])
-        f.write(csv_data)
-        f.close()
+    with open(filename, mode="w", newline='', encoding='latin1') as f:
+
+        # Commented out because it doesn't account for commas in the product name
+        # csv_data = ",".join(headers) + "\n"
+        # csv_data += "\n".join([','.join(row) for row in rows])
+        # f.write(csv_data)
+        # f.close()
+
+        w = csv.writer(f, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        w.writerow(headers)
+        w.writerows(rows)
     root.title(filename)
     text.configure(text="Saved file")
+    f.close()
     return
 
 
@@ -164,16 +178,6 @@ databox = ttk.Treeview(frame)
 # Bottom area
 bottom_area = ttk.Frame(content)
 bottom_area.columnconfigure(0, weight=1)
-bottom_area.columnconfigure(1, weight=1)
-bottom_area.columnconfigure(2, weight=1)
-bottom_area.columnconfigure(3, weight=1)
-bottom_area.columnconfigure(4, weight=1)
-bottom_area.columnconfigure(5, weight=1)
-bottom_area.columnconfigure(6, weight=1)
-bottom_area.columnconfigure(7, weight=1)
-bottom_area.columnconfigure(8, weight=1)
-bottom_area.columnconfigure(9, weight=1)
-bottom_area.columnconfigure(10, weight=1)
 bottom_area.rowconfigure(0, weight=1)
 
 # Bottom area
@@ -197,7 +201,7 @@ def find_mean():
             text.configure(text="Unsupported column")
             return
     avg = s / len(rows)
-    text.configure(text=f"Mean of the {headings[clicked_col]} column is: {avg}")
+    text.configure(text=f"Mean of the {headers[clicked_col]} column is: {avg}")
 
 
 def find_largest():
@@ -210,7 +214,7 @@ def find_largest():
             return
         if val > lg:
             lg = val
-    text.configure(text=f"Largest value of the {headings[clicked_col]} column is: {lg}")
+    text.configure(text=f"Largest value of the {headers[clicked_col]} column is: {lg}")
 
 
 def find_smallest():
@@ -223,11 +227,11 @@ def find_smallest():
             return
         if val < sm:
             sm = val
-    text.configure(text=f"Smallest value of the {headings[clicked_col]} column is: {sm}")
+    text.configure(text=f"Smallest value of the {headers[clicked_col]} column is: {sm}")
 
 
 def insert_row():
-    global headings, rows, rows_display, rv
+    global headers, rows, rows_display, rv
 
     # preserve the current search
     if search_entry.get() is not None and search_entry.get() != "":
@@ -246,7 +250,7 @@ def insert_row():
 
 
 def edit_row():
-    global headings, rows, rows_display, rv
+    global headers, rows, rows_display, rv
 
     # preserve the current search
     if search_entry.get() is not None and search_entry.get() != "":
@@ -279,8 +283,6 @@ def delete_row():
             search()
 
         # preserve the current sorting
-        if sorted_col == -1:
-            rows_display = rows
         rv = not rv
         sort_data(sorted_col)
 
@@ -302,9 +304,9 @@ popup_col.add_command(label="Find column's largest", command=find_largest)
 popup_col.add_command(label="Find column's smallest", command=find_smallest)
 
 popup_row.add_command(label="Insert before",
-                      command=lambda: mb(headings, rows, index=clicked_row, callback=insert_row))
+                      command=lambda: mb(headers, rows, index=clicked_row, callback=insert_row))
 popup_row.add_command(label="Edit row",
-                      command=lambda: mb(headings, rows, index=clicked_row, edit=True, callback=edit_row))
+                      command=lambda: mb(headers, rows, index=clicked_row, edit=True, callback=edit_row))
 popup_row.add_command(label="Delete row",
                       command=delete_row)
 
@@ -329,7 +331,10 @@ def menu_popup(event):
 
 
 # Bind so that right-clicking now pops up the menu
-databox.bind("<Button-3>", menu_popup)
+if os.name == 'posix':
+    databox.bind("<Button-2>", menu_popup)
+else:
+    databox.bind("<Button-3>", menu_popup)
 
 
 def sort_data(col):
@@ -365,12 +370,12 @@ def display_data():
         databox.delete(item)
 
     # declare column names
-    databox['columns'] = headings
+    databox['columns'] = headers
     databox.column('#0', width=0)  # default #0 column
     i = 0
 
     # add column names to the treeview
-    for header in headings:
+    for header in headers:
         if header == "Product Name":
             databox.column(header, anchor="center", width=550)
         else:
